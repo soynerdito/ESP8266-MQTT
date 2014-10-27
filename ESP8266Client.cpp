@@ -122,3 +122,18 @@ ESP8266Client::operator bool() {
 bool ESP8266Client::operator==(const ESP8266Client& rhs) {
   return _sock == rhs._sock && _sock != MAX_SOCK_NUM && rhs._sock != MAX_SOCK_NUM;
 }
+
+bool ESP8266Client::connectAP(char *ssid, char *password){
+{
+	char buffer[50];	
+	Serial.println("AT+CWMODE=1");
+	sprintf( buffer, "AT+CWJAP=\"%s\",\"%s\"", ssid, password);
+	Serial.println( buffer );
+  delay(2000);
+  if(Serial.find("OK")){
+    return true;
+  }else{
+    return false;
+  }
+}
+}
