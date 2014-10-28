@@ -26,9 +26,9 @@ public:
   virtual operator bool();
   virtual bool operator==(const ESP8266Client&);
   virtual bool operator!=(const ESP8266Client& rhs) { return !this->operator==(rhs); };
-	bool connectAP(char *ssid, char *password);
+  bool connectAP(char *ssid, char *password);
 
-
+  bool sendWaitRespond(char *message, char *response, int msTimeout);
 //  using Print::write;
 
 private:
