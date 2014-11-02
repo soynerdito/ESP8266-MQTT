@@ -7,6 +7,7 @@ extern "C" {
 
 #include "ESP8266Client.h"
 
+#define AT "AT+\n"
 #define AT_DISCONNECT "AT+CLOSE\n"
 #define AT_RESET "AT+RST\n"
 #define AT_WIFI_MODE "AT+CWMODE"
@@ -22,6 +23,7 @@ extern "C" {
 uint16_t ESP8266Client::_srcport = 1024;
 //AT+CIPSTART="TCP","192.168.10.117",10000
 //AT+CIPSTART="TCP","192.168.10.117",10000
+char buffer[50];
 
 ESP8266Client::ESP8266Client() : _sock(MAX_SOCK_NUM) {
 }
@@ -39,7 +41,7 @@ int ESP8266Client::connect(IPAddress ip, uint16_t port) {
 	//Close anny connection
 	Serial.println("AT+CIPCLOSE");
 	delay(20);
-	char buffer[50];
+
 	uint8_t* rawAdress = rawIPAddress(ip);
 	sprintf( buffer, "AT+CIPSTART=\"TCP\",\"%d.%d.%d.%d\",%d", rawAdress[0], rawAdress[1], rawAdress[2], rawAdress[3], port);
 	Serial.println(buffer);
@@ -52,17 +54,47 @@ int ESP8266Client::connect(IPAddress ip, uint16_t port) {
 }
 
 size_t ESP8266Client::write(uint8_t b) {
-	return Serial.write((char)b);
+	Serial.print("AT+CIPSEND=1");
+	if (Serial.find(">"))
+	{
+		//OK
+		Serial.write(b);
+		Serial.println("\n");
+		return sizeof(uint8_t);
+	}else
+	{
+		Serial.println("AT+CIPCLOSE");
+		return 0;
+	}
 }
 
 size_t ESP8266Client::write(const uint8_t *buf, size_t size) {
-	Serial.write(buf,(size/sizeof(uint8_t)));
-	return size;
+	//Serial.write(buf,(size/sizeof(uint8_t)));
+	sprintf( buffer, "AT+CIPSEND=%d\n", size/sizeof(uint8_t) );
+	Serial.print(buffer);
+	if (Serial.find(">"))
+	{
+		//OK
+		Serial.write(buf,(size/sizeof(uint8_t)));
+		Serial.print("\n");
+		return size;
+	} else {
+		Serial.println("AT+CIPCLOSE");
+		return 0;
+	}
+
+
 }
 
 int ESP8266Client::available() {
-	//Serial.println("::available");
-	return 1;
+	Serial.print(AT);
+	if (Serial.find("OK"))
+	{
+		return 1;
+	}else{
+		return 0;
+	}
+
 }
 
 /*
@@ -108,8 +140,7 @@ void ESP8266Client::flush() {
 }
 
 void ESP8266Client::stop() {
-	Serial.println("::stop");
-	Serial.write( AT_DISCONNECT );
+	Serial.print( AT_DISCONNECT );
 }
 
 uint8_t ESP8266Client::connected() {
