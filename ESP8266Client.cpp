@@ -24,6 +24,9 @@ uint16_t ESP8266Client::_srcport = 1024;
 //AT+CIPSTART="TCP","192.168.10.117",10000
 //AT+CIPSTART="TCP","192.168.10.117",10000
 char buffer[50];
+SoftwareSerial *serialPort=0;
+
+
 
 ESP8266Client::ESP8266Client() : _sock(MAX_SOCK_NUM) {
 }
@@ -36,17 +39,19 @@ int ESP8266Client::connect(const char* host, uint16_t port) {
 	// No DNS implementation as of now
 	return 1;
 }
-
+void ESP8266Client::setSerial( SoftwareSerial *port ){
+	serialPort = port;
+}
 int ESP8266Client::connect(IPAddress ip, uint16_t port) {
 	//Close anny connection
-	Serial.println("AT+CIPCLOSE");
+	serialPort->println("AT+CIPCLOSE");
 	delay(20);
 
 	uint8_t* rawAdress = rawIPAddress(ip);
 	sprintf( buffer, "AT+CIPSTART=\"TCP\",\"%d.%d.%d.%d\",%d", rawAdress[0], rawAdress[1], rawAdress[2], rawAdress[3], port);
-	Serial.println(buffer);
-	Serial.setTimeout(5000);
-	if( Serial.find("OK\r\n") ){
+	serialPort->println(buffer);
+	serialPort->setTimeout(5000);
+	if( serialPort->find("OK\r\n") ){
 		return true;
 	} else {
 		return false;
@@ -54,32 +59,32 @@ int ESP8266Client::connect(IPAddress ip, uint16_t port) {
 }
 
 size_t ESP8266Client::write(uint8_t b) {
-	Serial.print("AT+CIPSEND=1");
-	if (Serial.find(">"))
+	serialPort->print("AT+CIPSEND=1");
+	if (serialPort->find(">"))
 	{
 		//OK
-		Serial.write(b);
-		Serial.println("\n");
+		serialPort->write(b);
+		serialPort->println("\n");
 		return sizeof(uint8_t);
 	}else
 	{
-		Serial.println("AT+CIPCLOSE");
+		serialPort->println("AT+CIPCLOSE");
 		return 0;
 	}
 }
 
 size_t ESP8266Client::write(const uint8_t *buf, size_t size) {
-	//Serial.write(buf,(size/sizeof(uint8_t)));
+	//serialPort->write(buf,(size/sizeof(uint8_t)));
 	sprintf( buffer, "AT+CIPSEND=%d\n", size/sizeof(uint8_t) );
-	Serial.print(buffer);
-	if (Serial.find(">"))
+	serialPort->print(buffer);
+	if (serialPort->find(">"))
 	{
 		//OK
-		Serial.write(buf,(size/sizeof(uint8_t)));
-		Serial.print("\n");
+		serialPort->write(buf,(size/sizeof(uint8_t)));
+		serialPort->print("\n");
 		return size;
 	} else {
-		Serial.println("AT+CIPCLOSE");
+		serialPort->println("AT+CIPCLOSE");
 		return 0;
 	}
 
@@ -87,8 +92,8 @@ size_t ESP8266Client::write(const uint8_t *buf, size_t size) {
 }
 
 int ESP8266Client::available() {
-	Serial.print(AT);
-	if (Serial.find("OK"))
+	serialPort->print(AT);
+	if (serialPort->find("OK"))
 	{
 		return 1;
 	}else{
@@ -101,7 +106,7 @@ int ESP8266Client::available() {
  * Received data starts with +IPD
  */
 int ESP8266Client::read() {
-	Serial.println("::read");
+	serialPort->println("::read");
 return 0;
 /*uint8_t b;
  if ( recv(_sock, &b, 1) > 0 )
@@ -117,13 +122,13 @@ return 0;
 }
 
 int ESP8266Client::read(uint8_t *buf, size_t size) {
-	Serial.println("::read(uint8_t");
+	serialPort->println("::read(uint8_t");
 	//return recv(_sock, buf, size);
 	return 0;
 }
 
 int ESP8266Client::peek() {
-	Serial.println("::peek");
+	serialPort->println("::peek");
 	/*  uint8_t b;
 	 // Unlike recv, peek doesn't check to see if there's any data available, so we must
 	 if (!available())
@@ -134,13 +139,13 @@ int ESP8266Client::peek() {
 }
 
 void ESP8266Client::flush() {
-	Serial.println("::flush");
+	serialPort->println("::flush");
 	while (available())
 	read();
 }
 
 void ESP8266Client::stop() {
-	Serial.print( AT_DISCONNECT );
+	serialPort->print( AT_DISCONNECT );
 }
 
 uint8_t ESP8266Client::connected() {
@@ -164,13 +169,13 @@ bool ESP8266Client::operator==(const ESP8266Client& rhs) {
 
 bool ESP8266Client::connectAP(char *ssid, char *password) {
 	char buffer[50];
-	Serial.println("AT+CWMODE=1");
+	serialPort->println("AT+CWMODE=1");
 	sprintf( buffer, "AT+CWJAP=\"%s\",\"%s\"", ssid, password);
 
 	return sendWaitRespond(buffer, "OK", 5000 );
-	/*Serial.println( buffer );
+	/*serialPort->println( buffer );
 	delay(2000);
-	if(Serial.find("OK")) {
+	if(serialPort->find("OK")) {
 		return true;
 	} else {
 		return false;
@@ -178,9 +183,9 @@ bool ESP8266Client::connectAP(char *ssid, char *password) {
 }
 
 bool ESP8266Client::sendWaitRespond( char *message, char *response, int msTimeout) {
-	Serial.println(message);
-	Serial.setTimeout(msTimeout);
-	if( Serial.find(response) ){
+	serialPort->println(message);
+	serialPort->setTimeout(msTimeout);
+	if( serialPort->find(response) ){
 		return true;
 	} else {
 		return false;
