@@ -26,7 +26,7 @@ uint16_t ESP8266Client::_srcport = 1024;
 char buffer[50];
 SoftwareSerial *serialPort=0;
 
-
+#define DEBUG_SERIAL
 
 ESP8266Client::ESP8266Client() : _sock(MAX_SOCK_NUM) {
 }
@@ -169,10 +169,25 @@ bool ESP8266Client::operator==(const ESP8266Client& rhs) {
 
 bool ESP8266Client::connectAP(char *ssid, char *password) {
 	char buffer[50];
-	serialPort->println("AT+CWMODE=1");
-	sprintf( buffer, "AT+CWJAP=\"%s\",\"%s\"", ssid, password);
 
-	return sendWaitRespond(buffer, "OK", 5000 );
+	if( !sendWaitRespond("AT", "OK", 10000 ) ){
+#ifdef DEBUG_SERIAL
+		Serial.println("AT FAIL");
+#endif
+		return false;
+	}
+#ifdef DEBUG_SERIAL
+		Serial.println("AT OK");
+#endif
+	serialPort->println("AT+CWQAP");
+	delay(500);
+	serialPort->println("AT+CWMODE=1");
+	delay(500);
+	sprintf( buffer, "AT+CWJAP=\"%s\",\"%s\"", ssid, password);
+#ifdef DEBUG_SERIAL
+	Serial.println(buffer);
+#endif
+	return sendWaitRespond(buffer, "OK", 10000 );
 	/*serialPort->println( buffer );
 	delay(2000);
 	if(serialPort->find("OK")) {
@@ -188,6 +203,11 @@ bool ESP8266Client::sendWaitRespond( char *message, char *response, int msTimeou
 	if( serialPort->find(response) ){
 		return true;
 	} else {
-		return false;
+		serialPort->setTimeout(msTimeout);
+		if( serialPort->find(response) ){
+				return true;
+		}else{
+			return false;
+		}
 	}
 }
