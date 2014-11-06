@@ -7,9 +7,9 @@ extern "C" {
 
 #include "ESP8266Client.h"
 
-#define AT "AT+\n"
-#define AT_DISCONNECT "AT+CLOSE\n"
-#define AT_RESET "AT+RST\n"
+#define AT "AT"
+#define AT_DISCONNECT "AT+CIPCLOSE"
+#define AT_RESET "AT+RST"
 #define AT_WIFI_MODE "AT+CWMODE"
 #define AT_JOIN_AP "AT+CWJAP"
 #define AT_LIST_AP "AT+CWLAP"
@@ -27,7 +27,10 @@ char buffer[50];
 SoftwareSerial *serialPort=0;
 
 #define DEBUG_SERIAL
-
+/*
+ * Using a modified SoftwareSerial library to read directly what is on the Serial Buffer
+ * Official SoftwareSerial has receive buffer private, modified to use it public
+ */
 ESP8266Client::ESP8266Client() : _sock(MAX_SOCK_NUM) {
 }
 
@@ -92,8 +95,7 @@ size_t ESP8266Client::write(const uint8_t *buf, size_t size) {
 }
 
 int ESP8266Client::available() {
-	serialPort->print(AT);
-	if (serialPort->find("OK"))
+	if (sendWaitRespond(AT, "OK", 10000 ))
 	{
 		return 1;
 	}else{
@@ -149,11 +151,17 @@ void ESP8266Client::stop() {
 }
 
 uint8_t ESP8266Client::connected() {
-	return sendWaitRespond("AT+CIPSTATUS", "STATUS:3", 200 );
+#ifdef DEBUG_SERIAL
+	Serial.println("::connected()");
+#endif
+	return sendWaitRespond("AT+CIPSTATUS", "STATUS:5", 300 );
 }
 
 uint8_t ESP8266Client::status() {
-	return sendWaitRespond("AT+CIPSTATUS", "STATUS:3", 200 );
+#ifdef DEBUG_SERIAL
+	Serial.println("::status()");
+#endif
+	return sendWaitRespond("AT+CIPSTATUS", "STATUS:5", 300 );
 }
 
 // the next function allows us to use the client returned by
@@ -170,11 +178,15 @@ bool ESP8266Client::operator==(const ESP8266Client& rhs) {
 bool ESP8266Client::connectAP(char *ssid, char *password) {
 	char buffer[50];
 
-	if( !sendWaitRespond("AT", "OK", 10000 ) ){
-#ifdef DEBUG_SERIAL
-		Serial.println("AT FAIL");
-#endif
-		return false;
+	if( !sendWaitRespond("AT", "OK", 300 ) ){
+		!sendWaitRespond("AT+RST", "wwww.", 500 );
+		if( !sendWaitRespond("AT", "OK", 300 ) ){
+			#ifdef DEBUG_SERIAL
+			Serial.println("AT FAIL");
+			#endif
+			return false;
+		}
+
 	}
 #ifdef DEBUG_SERIAL
 		Serial.println("AT OK");
@@ -184,9 +196,7 @@ bool ESP8266Client::connectAP(char *ssid, char *password) {
 	serialPort->println("AT+CWMODE=1");
 	delay(500);
 	sprintf( buffer, "AT+CWJAP=\"%s\",\"%s\"", ssid, password);
-#ifdef DEBUG_SERIAL
-	Serial.println(buffer);
-#endif
+
 	return sendWaitRespond(buffer, "OK", 10000 );
 	/*serialPort->println( buffer );
 	delay(2000);
@@ -196,18 +206,35 @@ bool ESP8266Client::connectAP(char *ssid, char *password) {
 		return false;
 	}*/
 }
-
+String recBuffer;
 bool ESP8266Client::sendWaitRespond( char *message, char *response, int msTimeout) {
-	serialPort->println(message);
-	serialPort->setTimeout(msTimeout);
-	if( serialPort->find(response) ){
-		return true;
-	} else {
+	bool bussy = false;
+	do{
+		bussy = false;
+		serialPort->println(message);
 		serialPort->setTimeout(msTimeout);
+		#ifdef DEBUG_SERIAL
+			Serial.println(message);
+		#endif
+
 		if( serialPort->find(response) ){
+			#ifdef DEBUG_SERIAL
+					Serial.println("ret true");
+					serialPort->flush();
+			#endif
 				return true;
-		}else{
-			return false;
 		}
-	}
+		if( strstr(serialPort->_receive_buffer, "busy p")){
+			bussy =true;
+			#ifdef DEBUG_SERIAL
+				Serial.println("bussy");
+				serialPort->flush();
+			#endif
+		}
+	}while(bussy);
+	#ifdef DEBUG_SERIAL
+		Serial.println(serialPort->_receive_buffer);
+		Serial.println("ret false");
+	#endif
+	return false;
 }
