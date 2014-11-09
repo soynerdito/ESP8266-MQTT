@@ -4,7 +4,7 @@
 //#include "Print.h"
 #include "Client.h"
 #include "IPAddress.h"
-#include "SoftwareSerial.h"
+#include "SoftwareSerialLocal.h"
 
 class ESP8266Client : public Client {
 
@@ -29,7 +29,7 @@ public:
   virtual bool operator!=(const ESP8266Client& rhs) { return !this->operator==(rhs); };
   bool connectAP(char *ssid, char *password);
 
-  void setSerial( SoftwareSerial *port );
+  void setSerial( SoftwareSerialLocal *port );
 
   bool sendWaitRespond(char *message, char *response, int msTimeout);
 //  using Print::write;

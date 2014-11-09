@@ -24,7 +24,7 @@ uint16_t ESP8266Client::_srcport = 1024;
 //AT+CIPSTART="TCP","192.168.10.117",10000
 //AT+CIPSTART="TCP","192.168.10.117",10000
 char buffer[50];
-SoftwareSerial *serialPort=0;
+SoftwareSerialLocal *serialPort=0;
 
 #define DEBUG_SERIAL
 /*
@@ -40,12 +40,18 @@ ESP8266Client::ESP8266Client(uint8_t sock) : _sock(sock) {
 int ESP8266Client::connect(const char* host, uint16_t port) {
 	// Look up the host first
 	// No DNS implementation as of now
+#ifdef DEBUG_SERIAL
+	Serial.println("::connect(DNS)");
+#endif
 	return 1;
 }
-void ESP8266Client::setSerial( SoftwareSerial *port ){
+void ESP8266Client::setSerial( SoftwareSerialLocal *port ){
 	serialPort = port;
 }
 int ESP8266Client::connect(IPAddress ip, uint16_t port) {
+#ifdef DEBUG_SERIAL
+	Serial.println("::connect(uint8_t)");
+#endif
 	//Close anny connection
 	serialPort->println("AT+CIPCLOSE");
 	delay(20);
@@ -55,13 +61,16 @@ int ESP8266Client::connect(IPAddress ip, uint16_t port) {
 	serialPort->println(buffer);
 	serialPort->setTimeout(5000);
 	if( serialPort->find("OK\r\n") ){
-		return true;
+		return 1;
 	} else {
-		return false;
+		return 0;
 	}
 }
 
 size_t ESP8266Client::write(uint8_t b) {
+#ifdef DEBUG_SERIAL
+	Serial.println("::write(uint8_t)");
+#endif
 	serialPort->print("AT+CIPSEND=1");
 	if (serialPort->find(">"))
 	{
@@ -77,6 +86,9 @@ size_t ESP8266Client::write(uint8_t b) {
 }
 
 size_t ESP8266Client::write(const uint8_t *buf, size_t size) {
+#ifdef DEBUG_SERIAL
+	Serial.println("::write()");
+#endif
 	//serialPort->write(buf,(size/sizeof(uint8_t)));
 	sprintf( buffer, "AT+CIPSEND=%d\n", size/sizeof(uint8_t) );
 	serialPort->print(buffer);
@@ -95,6 +107,9 @@ size_t ESP8266Client::write(const uint8_t *buf, size_t size) {
 }
 
 int ESP8266Client::available() {
+#ifdef DEBUG_SERIAL
+	Serial.println("::available()");
+#endif
 	if (sendWaitRespond(AT, "OK", 10000 ))
 	{
 		return 1;
@@ -108,7 +123,10 @@ int ESP8266Client::available() {
  * Received data starts with +IPD
  */
 int ESP8266Client::read() {
-	serialPort->println("::read");
+#ifdef DEBUG_SERIAL
+	Serial.println("::read()");
+#endif
+	//serialPort->println("::read");
 return 0;
 /*uint8_t b;
  if ( recv(_sock, &b, 1) > 0 )
@@ -124,13 +142,19 @@ return 0;
 }
 
 int ESP8266Client::read(uint8_t *buf, size_t size) {
-	serialPort->println("::read(uint8_t");
+#ifdef DEBUG_SERIAL
+	Serial.println("::read(uint8)");
+#endif
+
 	//return recv(_sock, buf, size);
 	return 0;
 }
 
 int ESP8266Client::peek() {
-	serialPort->println("::peek");
+#ifdef DEBUG_SERIAL
+	Serial.println("::peek()");
+#endif
+	//serialPort->println("::peek");
 	/*  uint8_t b;
 	 // Unlike recv, peek doesn't check to see if there's any data available, so we must
 	 if (!available())
@@ -141,12 +165,18 @@ int ESP8266Client::peek() {
 }
 
 void ESP8266Client::flush() {
+#ifdef DEBUG_SERIAL
+	Serial.println("::flush()");
+#endif
 	serialPort->println("::flush");
 	while (available())
 	read();
 }
 
 void ESP8266Client::stop() {
+#ifdef DEBUG_SERIAL
+	Serial.println("::stop()");
+#endif
 	serialPort->print( AT_DISCONNECT );
 }
 
@@ -154,7 +184,7 @@ uint8_t ESP8266Client::connected() {
 #ifdef DEBUG_SERIAL
 	Serial.println("::connected()");
 #endif
-	return sendWaitRespond("AT+CIPSTATUS", "STATUS:5", 300 );
+	return sendWaitRespond("AT+CIPSTATUS", "STATUS:3", 300 );
 }
 
 uint8_t ESP8266Client::status() {
@@ -231,6 +261,7 @@ bool ESP8266Client::sendWaitRespond( char *message, char *response, int msTimeou
 				serialPort->flush();
 			#endif
 		}
+		delay(50);
 	}while(bussy);
 	#ifdef DEBUG_SERIAL
 		Serial.println(serialPort->_receive_buffer);
