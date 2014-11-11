@@ -11,3 +11,6 @@ https://github.com/knolleary/pubsubclient/tree/master/PubSubClient
 
 
 Remember this project is NOT WORKING. IF there is an implementation for the ESP8266 that do MQTT tell me, so I can drop all this and just start using that other.
+
+
+This  project is the software part of the ESP8266. I am also working on making an interface board called WiFico to ease interfacing the ESP8266 into a breadboard and 5V. Check the hardware at https://github.com/soynerdito/WifIco
