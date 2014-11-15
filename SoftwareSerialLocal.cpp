@@ -418,7 +418,6 @@ void SoftwareSerialLocal::end()
     *digitalPinToPCMSK(_receivePin) &= ~_BV(digitalPinToPCMSKbit(_receivePin));
 }
 
-
 // Read data from buffer
 int SoftwareSerialLocal::read()
 {
