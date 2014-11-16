@@ -515,3 +515,17 @@ int SoftwareSerialLocal::peek()
   // Read from "head"
   return _receive_buffer[_receive_buffer_head];
 }
+
+bool SoftwareSerialLocal::peek(char startsWith[])
+{
+  if (!isListening())
+    return -1;
+
+  // Empty buffer?
+
+  if (_receive_buffer_head == _receive_buffer_tail)
+    return -1;
+
+  // Read from "head"
+  return strcmp( &_receive_buffer[_receive_buffer_head], startsWith )== 0;
+}

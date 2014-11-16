@@ -144,26 +144,61 @@ int ESP8266Client::available() {
  * After that comes the amount of byte received
  * On the next line then is the actual data
  */
+
+//Skip chars
+//Sample +IPD,0,4:df
+char skip[] ={ '+','I','P','D' };
+
+byte inBuffer[20];
+int buffPos=0;
+int buffSize=0;
 int ESP8266Client::read() {
-	int retValue = serialPort->read();
+	Serial.println("::read");
+	if( buffPos < buffSize){
+		int retValue = inBuffer[buffPos];
+		buffPos++;
+		return retValue;
+	}
+	//Skip line feeds
+	Serial.println("to peek");
+	while( serialPort->peek() == 10
+			|| serialPort->peek() == 13){
+		serialPort->read();
+	}
+	//Skip +IPDXX:
+	Serial.println("skiping");
+	/*if( serialPort->peek() == skip[0] ){
+		if( serialPort->read() == skip[0] &&
+			serialPort->read() == skip[1] &&
+			serialPort->read() == skip[2] &&
+			serialPort->read() == skip[3] ){*/
+
+    if( serialPort->find("+IPD,") ){
+    	Serial.println("Found IPD");
+			while( serialPort->read() != ':' ){
+				#ifdef DEBUG_SERIAL
+					Serial.println(".");
+				#endif
+			}
+			bool reading = true;
+			buffSize=0;
+			buffPos=0;
+			while(serialPort->peek() != 13 && serialPort->peek() != 10){
+				inBuffer[buffSize] = serialPort->read();
+				buffSize++;
+			}
+			//Recursion.. why not!
 #ifdef DEBUG_SERIAL
-	Serial.println("::read()");
-	Serial.println(serialPort->_receive_buffer);
-	Serial.println(retValue);
+	Serial.println("Recursion.....");
 #endif
-	return retValue;
-return 0;
-/*uint8_t b;
- if ( recv(_sock, &b, 1) > 0 )
- {
- // recv worked
- return b;
- }
- else
- {
- // No data available
- return -1;
- }*/
+			serialPort->flush();
+			return read();
+
+	}
+	Serial.println("ret -1");
+	Serial.println(char(serialPort->read()) );
+	return -1;
+
 }
 
 int ESP8266Client::read(uint8_t *buf, size_t size) {
@@ -201,21 +236,21 @@ void ESP8266Client::stop() {
 #ifdef DEBUG_SERIAL
 	Serial.println("::stop()");
 #endif
-	serialPort->print( AT_DISCONNECT );
+	sendWaitRespond( "AT+CIPCLOSE", "OK", 1500);
 }
 
 uint8_t ESP8266Client::connected() {
 #ifdef DEBUG_SERIAL
 	Serial.println("::connected()");
 #endif
-	return sendWaitRespond("AT+CIPSTATUS", "STATUS:3", 300 );
+	return sendWaitRespond("AT+CIPSTATUS", "STATUS:3", 500 );
 }
 
 uint8_t ESP8266Client::status() {
 #ifdef DEBUG_SERIAL
 	Serial.println("::status()");
 #endif
-	return sendWaitRespond("AT+CIPSTATUS", "STATUS:5", 300 );
+	return sendWaitRespond("AT+CIPSTATUS", "STATUS:5", 500 );
 }
 
 // the next function allows us to use the client returned by
