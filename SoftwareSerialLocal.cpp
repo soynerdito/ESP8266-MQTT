@@ -1,5 +1,5 @@
 /*
-SoftwareSerial.cpp (formerly NewSoftSerial.cpp) - 
+SoftwareSerialLocal.cpp (formerly NewSoftSerial.cpp) - 
 Multi-instance software serial library for Arduino/Wiring
 -- Interrupt-driven receive and other improvements by ladyada
    (http://ladyada.net)
@@ -125,7 +125,7 @@ const int XMIT_START_ADJUSTMENT = 6;
 
 #else
 
-#error This version of SoftwareSerial supports only 20, 16 and 8MHz processors
+#error This version of SoftwareSerialLocal supports only 20, 16 and 8MHz processors
 
 #endif
 
@@ -418,6 +418,7 @@ void SoftwareSerialLocal::end()
     *digitalPinToPCMSK(_receivePin) &= ~_BV(digitalPinToPCMSKbit(_receivePin));
 }
 
+
 // Read data from buffer
 int SoftwareSerialLocal::read()
 {
@@ -514,18 +515,4 @@ int SoftwareSerialLocal::peek()
 
   // Read from "head"
   return _receive_buffer[_receive_buffer_head];
-}
-
-bool SoftwareSerialLocal::peek(char startsWith[])
-{
-  if (!isListening())
-    return -1;
-
-  // Empty buffer?
-
-  if (_receive_buffer_head == _receive_buffer_tail)
-    return -1;
-
-  // Read from "head"
-  return strcmp( &_receive_buffer[_receive_buffer_head], startsWith )== 0;
 }

@@ -46,7 +46,6 @@ http://arduiniana.org.
 
 class SoftwareSerialLocal : public Stream
 {
-
 private:
   // per object data
   uint8_t _receivePin;
@@ -79,7 +78,8 @@ private:
   // private static method for timing
   static inline void tunedDelay(uint16_t delay);
 
-public:	 
+public:
+	static char _receive_buffer[_SS_MAX_RX_BUFF]; 
   // public methods
   SoftwareSerialLocal(uint8_t receivePin, uint8_t transmitPin, bool inverse_logic = false);
   ~SoftwareSerialLocal();
@@ -89,7 +89,6 @@ public:
   bool isListening() { return this == active_object; }
   bool overflow() { bool ret = _buffer_overflow; _buffer_overflow = false; return ret; }
   int peek();
-  bool peek(char startsWith[]);
 
   virtual size_t write(uint8_t byte);
   virtual int read();
@@ -100,7 +99,6 @@ public:
 
   // public only for easy access by interrupt handlers
   static inline void handle_interrupt();
-	static char _receive_buffer[_SS_MAX_RX_BUFF];
 };
 
 // Arduino 0012 workaround
