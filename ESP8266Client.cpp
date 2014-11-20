@@ -75,13 +75,17 @@ int ESP8266Client::connect(IPAddress ip, uint16_t port) {
 		return 0;
 	}
 }
-
+unsigned long start;
 size_t ESP8266Client::write(uint8_t b) {
 #ifdef DEBUG_SERIAL
 	Serial.println("::write(uint8_t)");
 #endif
+	start = millis();
 	while(!sendWaitRespond("AT","OK",10000) ){
-
+		if( (start -millis()) > 5000 ){
+			Serial.println("FAIL TO WRITE");
+			return 0;
+		}
 	}
 #ifdef DEBUG_SERIAL
 	Serial.println("ready to write byte");
@@ -109,9 +113,16 @@ size_t ESP8266Client::write(const uint8_t *buf, size_t size) {
 #ifdef DEBUG_SERIAL
 	Serial.println("::write()");
 #endif
-
-	while(!sendWaitRespond("AT","OK",10000) ){
+	start = millis();
+	while(!sendWaitRespond("AT","OK",10000) )
+	{
+		if( (start -millis()) > 5000 ){
+			Serial.println("FAIL TO WRITE");
+			return 0;
 		}
+	}
+
+
 	#ifdef DEBUG_SERIAL
 		Serial.println("ready to write bytes");
 	#endif
