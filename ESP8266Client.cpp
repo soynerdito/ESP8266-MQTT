@@ -5,6 +5,7 @@ extern "C" {
 #include "Arduino.h"
 
 #include "ESP8266Client.h"
+#include <ESP8266COM.h>
 
 #define AT "AT"
 #define AT_DISCONNECT "AT+CIPCLOSE"
@@ -23,9 +24,40 @@ uint16_t ESP8266Client::_srcport = 1024;
 //AT+CIPSTART="TCP","192.168.10.117",10000
 //AT+CIPSTART="TCP","192.168.10.117",10000
 char buffer[50];
-SoftwareSerialLocal *serialPort=0;
 
 #define DEBUG_SERIAL
+
+char *mExpectedResponse = 0;
+bool *mReponseFound = 0;
+bool setWaitFor(char *expectedResponse, bool *found){
+	mExpectedResponse = expectedResponse;
+	mReponseFound = found;
+}
+
+void callback(void *reference, char *msg, int *len )
+{
+	if( msg[0] == 13 || msg[0] == 10 ){
+		//ignore empty lines
+		return;
+	}
+	ESP8266Client *me = (ESP8266Client*)reference;
+	if(mExpectedResponse!= 0 &&  mReponseFound!=0 ){
+		//check response
+		if(msg!=0 && strstr(msg, mExpectedResponse ) ){
+			*mReponseFound = true;
+			mExpectedResponse = 0;
+			mReponseFound = 0;
+			Serial.println("Expected FOUND");
+			return;
+		}
+	}
+	//Serial.println("Callback");
+	//Serial.println(msg);
+	me->parse( msg, len);
+	me->available();
+}
+
+
 /*
  * Using a modified SoftwareSerial library to read directly what is on the Serial Buffer
  * Official SoftwareSerial has receive buffer private, modified to use it public
@@ -33,10 +65,9 @@ SoftwareSerialLocal *serialPort=0;
 ESP8266Client::ESP8266Client() : _sock(MAX_SOCK_NUM) {
 }
 
-ESP8266Client::ESP8266Client(uint8_t sock) : _sock(sock) {
-}
 
 int ESP8266Client::connect(const char* host, uint16_t port) {
+
 	// Look up the host first
 	// No DNS implementation as of now
 #ifdef DEBUG_SERIAL
@@ -44,8 +75,8 @@ int ESP8266Client::connect(const char* host, uint16_t port) {
 #endif
 	return 1;
 }
-void ESP8266Client::setSerial( SoftwareSerialLocal *port ){
-	serialPort = port;
+void ESP8266Client::setPort( Stream *port ){
+	this->mESPModule.initialize(this, port, callback  );
 }
 
 int ESP8266Client::connect(IPAddress ip, uint16_t port) {
@@ -53,9 +84,10 @@ int ESP8266Client::connect(IPAddress ip, uint16_t port) {
 	Serial.println("::connect(uint8_t)");
 #endif
 	//Close anny connection
-	serialPort->println("AT+CIPCLOSE");
+	//serialPort->println("AT+CIPCLOSE");
+	mESPModule.write("AT+CIPCLOSE");
 	delay(20);
-
+	flush();
 	uint8_t* rawAdress = rawIPAddress(ip);
 	sprintf( buffer, "AT+CIPSTART=\"TCP\",\"%d.%d.%d.%d\",%d", rawAdress[0], rawAdress[1], rawAdress[2], rawAdress[3], port);
 #ifdef DEBUG_SERIAL
@@ -65,7 +97,7 @@ int ESP8266Client::connect(IPAddress ip, uint16_t port) {
 	//serialPort->setTimeout(5000);
 	if( sendWaitRespond(buffer,"OK",5000) ){
 #ifdef DEBUG_SERIAL
-	Serial.println("true");
+	Serial.println("connect true");
 #endif
 		return 1;
 	} else {
@@ -99,12 +131,14 @@ size_t ESP8266Client::write(uint8_t b) {
 	Serial.println("byte sent");
 #endif
 		//OK
-		serialPort->write(b);
-		serialPort->println();
+		mESPModule.write(b);
+		mESPModule.write('\n');
+		//serialPort->println();
 		return sizeof(uint8_t);
 	}else
 	{
-		serialPort->println("AT+CIPCLOSE");
+		//serialPort->println("AT+CIPCLOSE");
+		mESPModule.write("AT+CIPCLOSE");
 		return 0;
 	}
 }
@@ -133,12 +167,15 @@ size_t ESP8266Client::write(const uint8_t *buf, size_t size) {
 	Serial.println("writing");
 #endif
 		//OK
-		serialPort->write(buf,(sizeof(uint8_t) * size));
-		serialPort->print("\n");
-		serialPort->flush();
+		mESPModule.write(buf, size);
+		mESPModule.write('\n');
+		//serialPort->write(buf,(sizeof(uint8_t) * size));
+		//serialPort->print("\n");
+		//serialPort->flush();
 		return size;
 	} else {
-		serialPort->println("AT+CIPCLOSE");
+		mESPModule.write("AT+CIPCLOSE");
+		//serialPort->println("AT+CIPCLOSE");
 		return 0;
 	}
 
@@ -161,7 +198,7 @@ char inBuffer[255];
 int buffPos=0;
 int buffSize=0;
 int ESP8266Client::read( ) {
-	if( buffPos < buffSize ){
+	/*if( buffPos < buffSize ){
 		//Serial.print("From Buffeer ");
 		char retValue = inBuffer[buffPos];
 		//Serial.print(retValue);
@@ -174,20 +211,6 @@ int ESP8266Client::read( ) {
 	if( !serialPort->available() ){
 		return -1;
 	}
-	//memset(inBuffer, '\n', sizeof(inBuffer));
-	//Skip line feeds
-	//Serial.println("to peek");
-	/*while( serialPort->peek() == 10
-			|| serialPort->peek() == 13){
-		serialPort->read();
-	}*/
-	//Skip +IPDXX:
-	//Serial.println("skiping");
-	/*if( serialPort->peek() == skip[0] ){
-		if( serialPort->read() == skip[0] &&
-			serialPort->read() == skip[1] &&
-			serialPort->read() == skip[2] &&
-			serialPort->read() == skip[3] ){*/
 
     if( serialPort->find("+IPD,") ){
     	buffSize=0;
@@ -221,41 +244,7 @@ int ESP8266Client::read( ) {
     		Serial.println("data in");
     	}
 #endif
-    	/*while( serialPort->peek() != 10 &&
-    			serialPort->peek() != 13 ){
-    		inBuffer[buffSize] = char(serialPort->read());
-    		Serial.print(char(inBuffer[buffSize]));
-    		buffSize++;
-    	}
-    	Serial.print("Buffer Size = ");
-    	Serial.println(buffSize);*/
-    	//inBuffer[buffSize] = 13;
-    	//buffSize++;
-    		/*char tmp;
-			while( serialPort->peek() != ':' ){
-				buffSize * 10;
-				tmp = serialPort->read();
-				Serial.print(tmp);
-				buffSize += (tmp - 48);
-				//buffSize += (char(serialPort->read()) - 48);
-				#ifdef DEBUG_SERIAL
-					Serial.println(".");
-				#endif
-				Serial.print(buffSize);
-			}
-			//Skip next char
-			Serial.print(char(serialPort->read()));
 
-			Serial.println("Message Size");
-			Serial.println(buffSize);
-
-			bool reading = true;
-			buffPos=0;
-			while(buffPos < buffSize ){
-				inBuffer[buffPos] = serialPort->read();
-				Serial.print(char(inBuffer[buffPos]));
-				buffPos++;
-			}*/
 			//inBuffer[buffPos] = 0;
 			buffPos = 0;
 			flush();
@@ -268,11 +257,12 @@ int ESP8266Client::read( ) {
 		Serial.println("no IPD");
 	}
 
-	Serial.println("ret -1");
+	Serial.println("ret -1");*/
 	return -1;
 }
 
 int ESP8266Client::available() {
+	mESPModule.read();
 	if( buffSize > 0 ) return true;
 	if( read() < 0 ) return false;
 	Serial.println( "avilable Read");
@@ -289,7 +279,7 @@ int ESP8266Client::read(uint8_t *buf, size_t size) {
 #ifdef DEBUG_SERIAL
 	Serial.println("NOT IMPLEMENTED ::read(uint8)");
 #endif
-	return serialPort->read();
+	return -1;//serialPort->read();
 }
 
 int ESP8266Client::peek() {
@@ -303,14 +293,14 @@ int ESP8266Client::peek() {
 	 return -1;
 	 ::peek(_sock, &b);
 	 return b;*/
-	return serialPort->peek();
+	return 0;//serialPort->peek();
 }
 
 void ESP8266Client::flush() {
 #ifdef DEBUG_SERIAL
 	Serial.println("::flush()");
 #endif
-	serialPort->flush();
+	mESPModule.flush();
 }
 
 void ESP8266Client::stop() {
@@ -365,77 +355,89 @@ bool ESP8266Client::operator==(const ESP8266Client& rhs) {
 bool ESP8266Client::connectAP(char *ssid, char *password) {
 	char buffer[50];
 
-	if( !sendWaitRespond("AT", "OK", 300 ) ){
-		!sendWaitRespond("AT+RST", "wwww.", 500 );
-		if( !sendWaitRespond("AT", "OK", 300 ) ){
+	if( !sendWaitRespond("AT", "OK", 10000 ) ){
+		!sendWaitRespond("AT+RST", "wwww.", 10000 );
+		if( !sendWaitRespond("AT", "OK", 10000 ) ){
 			#ifdef DEBUG_SERIAL
 			Serial.println("AT FAIL");
 			#endif
 			return false;
 		}
-
 	}
 #ifdef DEBUG_SERIAL
-		Serial.println("AT OK");
+	Serial.println("AT OK");
 #endif
-	serialPort->println("AT+CWQAP");
+	flush();
+	mESPModule.write("AT+CWQAP");
 	delay(500);
-	serialPort->println("AT+CWMODE=1");
+	mESPModule.write("AT+CWMODE=1");
 	delay(500);
+	flush();
 	sprintf( buffer, "AT+CWJAP=\"%s\",\"%s\"", ssid, password);
 
 	return sendWaitRespond(buffer, "OK", 10000 );
-	/*serialPort->println( buffer );
-	delay(2000);
-	if(serialPort->find("OK")) {
-		return true;
-	} else {
-		return false;
-	}*/
-}
-bool tryATOK() {
-	serialPort->setTimeout(1500);
-	serialPort->println("AT");
-	if( serialPort->find("OK") ){
-		return true;
-	}
-	return false;
 }
 
-String recBuffer;
-bool ESP8266Client::sendWaitRespond( char *message, char *response, int msTimeout) {
-	bool bussy = false;
-	serialPort->flush();
-	do{
-		bussy = false;
-		serialPort->println(message);
-		serialPort->setTimeout(msTimeout);
-		#ifdef DEBUG_SERIAL
-			Serial.println(message);
-		#endif
-		if( serialPort->find(response) ){
-			#ifdef DEBUG_SERIAL
-					Serial.println("ret true");
-					serialPort->flush();
-			#endif
-				return true;
-		}
-		if( strstr(serialPort->_receive_buffer, "busy")){
-			bussy =true;
-			#ifdef DEBUG_SERIAL
-				Serial.println("bussy");
-				Serial.println(serialPort->_receive_buffer);
-				serialPort->flush();
-			#endif
-			while(!tryATOK()){
-				Serial.println("trying AT");
-			}
-		}
-		delay(50);
-	}while(bussy);
-	#ifdef DEBUG_SERIAL
-		Serial.println(serialPort->_receive_buffer);
-		Serial.println("ret false");
-	#endif
-	return false;
+void ESP8266Client::parse( char *msg, int *len ){
+	//Parse this message
+	mLastResponse = msg;
 }
+
+bool timeout(unsigned long uStart, int timeout ){
+	return ((millis() - uStart ) > timeout);
+}
+
+bool responseFound = false;
+unsigned long startTime;
+bool ESP8266Client::singleSendWait(char *message, char *response, int mstimeout){
+	responseFound = false;
+	setWaitFor(response, &responseFound );
+	startTime = millis();
+	while(!responseFound){
+		mESPModule.write(message);
+		mESPModule.read();
+		delay(100);
+		if( timeout(startTime, mstimeout)){
+			Serial.println("Timeout");
+			return false;
+		}
+	}
+	return true;
+}
+
+bool ESP8266Client::sendWaitRespond( char *message, char *response, int msTimeout ){
+	//Flush port
+	//Set Expected response
+	//Post Message
+	//msTimeout = 20000;
+	mESPModule.flush();
+	clearLast();
+	//Check if device ready for use
+	Serial.println("checking AT for");
+	Serial.println(message);
+	Serial.print("Response ( ");
+	Serial.print(response);
+	Serial.println(" )");
+
+	if( !singleSendWait("AT","OK", msTimeout) ){
+		Serial.println("AT FAIL");
+		return false;
+	}
+	Serial.println("AT Success");
+
+	bool bussy = true;
+	startTime = millis();
+	for( int i=0;i< 5; i++) {
+	//do{
+		if( singleSendWait(message,response, msTimeout) ){
+			Serial.println("ret true");
+			return true;
+		}
+		//mESPModule.flush();
+		//mESPModule.write(message);
+		delay(50);
+	}//while(bussy);
+	return false;
+
+}
+

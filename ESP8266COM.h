@@ -16,17 +16,28 @@
 #include "Arduino.h"	
 #include "Client.h"
 #include "IPAddress.h"
-#include "SoftwareSerialLocal.h"
 
 class ESP8266COM {
 
 //Callback with line reaceive
 public:
-	ESP8266COM( SoftwareSerialLocal *port, void(*)(char*,int*) );
+	ESP8266COM(void *object, Stream *port, void(*)(void*,char*,int*) );
+	ESP8266COM( );
+	void initialize(void *object, Stream *port, void(*callback)(void*,char*,int*)  );
+	int write(char *message);
+	void write(uint8_t b) { mSerialPort->write(b); }
+	void write(const uint8_t *buf, size_t size){
+		mSerialPort->write(buf,(sizeof(uint8_t) * size));
+	}
 	//Returns a line
-	void (*callback)(char*,int*);
+	void (*callback)(void*,char*,int*);
+	void flush(){ mSerialPort->flush(); }
 
 	int read();
+
+private:
+	void *mReference;
+	Stream *mSerialPort;
 
 };
 
