@@ -2,6 +2,7 @@
 #include <PubSubClient.h>
 #include <SoftwareSerialLocal.h>
 
+//MQTT Server IP Address
 byte server[] = { 198, 41, 30, 241 };
 
 
@@ -17,47 +18,49 @@ void clearScr(){
 void callback(char* topic, byte* payload, unsigned int length) {
   // handle message arrived
   Serial.println("Call back");
+  Serial.write(payload, length);
+  Serial.println();
 }
 
 ESP8266Client esp8266;
 PubSubClient client(server, 1883, callback, esp8266);
 
 boolean connectSubscribe(){
-  Serial.println("calling arduino connect");
-  if (client.connect("arduinoClient")) {    
-    //client.publish("arduino.esp8266.out","Connected");
-    client.subscribe("arduino.esp8266");
+  Serial.println("calling connect");
+  if (client.connect("arduinoClient")) {
+    Serial.println("client connected OK");
+    client.subscribe("arduino.casa");
+    Serial.println("Think it is subscribed");
     return true;
   }else{
+    Serial.println("Fail to connect");
     return false;
   }
 }
 void setup() {
-  Serial.begin(57600);
+  Serial.begin(9600);
   Serial.println("Starting up");
   
   //Set Software serial reference to library
   wifiPort.begin(9600);
   esp8266.setSerial( &wifiPort );
-  if( esp8266.connectAP("SSID","WIFI_PASSWORD") ){
+  if( esp8266.connectAP("SSID","PASSWORD") ){
     Serial.println("Connected to Wifi");
   }else{
     Serial.println("Error Connecting to Wifi");
     Serial.println("No need to continue Reset!!!");
-    delay(6000);
+    delay(3000);
     clearScr();
     resetFunc();
   }    
-  delay(500);
-  
-  // put your setup code here, to run once:
   Serial.println("calling arduino connect");
   if( connectSubscribe() ){
+    
     Serial.println("Subscribed");
   }else{
     Serial.println("***************");    
-    Serial.println("Forget it reset");
-    delay(30000);
+    Serial.println("Forget about it reset");    
+    delay(500);
     clearScr();
     resetFunc();
   }
@@ -65,10 +68,12 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly: 
-  Serial.println("loop");
-  if( !client.loop() ){
-    connectSubscribe();
+
+	//If connection fail re-connects
+  if( !client.connected()){
+    if( !client.connected()  )
+      connectSubscribe();
   }
-  delay(100);
+  client.loop();
+  delay(150);
 }
